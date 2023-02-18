@@ -1,6 +1,6 @@
 # tanTRG
 
-Based on arXiv:2212.11973.
+Based on [arXiv:2212.11973](http://arxiv.org/abs/2212.11973).
 
 This package is under heavy development and the interface is subject to change.
 
