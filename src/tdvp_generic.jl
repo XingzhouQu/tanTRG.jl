@@ -42,7 +42,7 @@ function process_sweeps(; kwargs...)
   return (; maxdim, mindim, cutoff, noise)
 end
 
-function tdvp(solver, PH, t::Number, psi0::MPS; kwargs...)
+function tdvp(solver, PH, t::Number, psi0; kwargs...)
   reverse_step = get(kwargs, :reverse_step, true)
 
   nsweeps = _tdvp_compute_nsweeps(t; kwargs...)
@@ -140,7 +140,7 @@ Optional keyword arguments:
 * `observer` - object implementing the [Observer](@ref observer) interface which can perform measurements and stop early
 * `write_when_maxdim_exceeds::Int` - when the allowed maxdim exceeds this value, begin saving tensors to disk to free memory in large calculations
 """
-function tdvp(solver, H::MPO, t::Number, psi0::MPS; kwargs...)
+function tdvp(solver, H::MPO, t::Number, psi0; kwargs...)
   check_hascommoninds(siteinds, H, psi0)
   check_hascommoninds(siteinds, H, psi0')
   # Permute the indices to have a better memory layout
