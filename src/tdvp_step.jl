@@ -1,5 +1,5 @@
 function tdvp_step(
-  order::TDVPOrder, solver, PH, time_step::Number, psi; current_time=0.0, kwargs...
+  order::TDVPOrder, solver, PH, time_step::Number, psi::MPS; current_time=0.0, kwargs...
 )
   orderings = ITensorTDVP.orderings(order)
   sub_time_steps = ITensorTDVP.sub_time_steps(order)
@@ -12,6 +12,22 @@ function tdvp_step(
     current_time += sub_time_steps[substep]
   end
   return psi, PH, info
+end
+
+function tdvp_step(
+  order::TDVPOrder, solver, PH, time_step::Number, psi::MPO, lgnrm::Number; current_time=0.0, kwargs...
+)
+  orderings = ITensorTDVP.orderings(order)
+  sub_time_steps = ITensorTDVP.sub_time_steps(order)
+  sub_time_steps *= time_step
+  info = nothing
+  for substep in 1:length(sub_time_steps)
+    psi, PH, lgnrm, info = tdvp_sweep(
+      orderings[substep], solver, PH, sub_time_steps[substep], psi, lgnrm; current_time, kwargs...
+    )
+    current_time += sub_time_steps[substep]
+  end
+  return psi, PH, lgnrm, info
 end
 
 isforward(direction::Base.ForwardOrdering) = true
@@ -36,7 +52,7 @@ function is_half_sweep_done(direction, b, n; ncenter)
 end
 
 function tdvp_sweep(
-  direction::Base.Ordering, solver, PH, time_step::Number, psi; kwargs...
+  direction::Base.Ordering, solver, PH, time_step::Number, psi::MPO, lgnrm::Number; kwargs...
 )
   PH = copy(PH)
   psi = copy(psi)
@@ -77,11 +93,12 @@ function tdvp_sweep(
   maxtruncerr = 0.0
   info = nothing
   for b in sweep_bonds(direction, N; ncenter=nsite)
-    current_time, maxtruncerr, spec, info = tdvp_site_update!(
+    current_time, maxtruncerr, spec, info, lgnrm = tdvp_site_update!(
       solver,
       PH,
       psi,
-      b;
+      b,
+      lgnrm;
       nsite,
       reverse_step,
       current_time,
@@ -130,15 +147,16 @@ function tdvp_sweep(
     )
   end
   # Just to be sure:
-  normalize && normalize!(psi)
-  return psi, PH, TDVPInfo(maxtruncerr)
+  # normalize && normalize!(psi)
+  return psi, PH, lgnrm, TDVPInfo(maxtruncerr)
 end
 
 function tdvp_site_update!(
   solver,
   PH,
   psi,
-  b;
+  b,
+  lgnrm;
   nsite,
   reverse_step,
   current_time,
@@ -160,7 +178,8 @@ function tdvp_site_update!(
     solver,
     PH,
     psi,
-    b;
+    b,
+    lgnrm;
     current_time,
     outputlevel,
     time_step,
@@ -333,7 +352,8 @@ function tdvp_site_update!(
   solver,
   PH,
   psi,
-  b;
+  b,
+  lgnrm;
   current_time,
   outputlevel,
   time_step,
@@ -355,7 +375,10 @@ function tdvp_site_update!(
   phi1 = psi[b] * psi[b + 1]
   phi1, info = solver(PH, time_step, phi1; current_time, outputlevel)
   current_time += time_step
-  normalize && (phi1 /= norm(phi1))
+  # normalize && (phi1 /= norm(phi1))
+  lgnrm1 = lognorm(phi1)
+  lgnrm += lgnrm1
+  phi1 /= exp(lgnrm1)
   spec = nothing
   ortho = isforward(direction) ? "left" : "right"
   drho = nothing
@@ -376,6 +399,7 @@ function tdvp_site_update!(
     svd_alg,
   )
   maxtruncerr = max(maxtruncerr, spec.truncerr)
+  
   if !is_half_sweep_done(direction, b, N; ncenter=nsite)
     # Do backwards evolution step
     b1 = (isforward(direction) ? b + 1 : b)
@@ -385,11 +409,14 @@ function tdvp_site_update!(
     position!(PH, psi, b1)
     phi0, info = solver(PH, -time_step, phi0; current_time, outputlevel)
     current_time -= time_step
-    normalize && (phi0 ./= norm(phi0))
+    # normalize && (phi0 ./= norm(phi0))
+    lgnrm0 = lognorm(phi0)
+    lgnrm += lgnrm0
+    phi0 ./= exp(lgnrm0)
     psi[b1] = phi0
     set_nsite!(PH, nsite)
   end
-  return current_time, maxtruncerr, spec, info
+  return current_time, maxtruncerr, spec, info, lgnrm
 end
 
 function tdvp_site_update!(

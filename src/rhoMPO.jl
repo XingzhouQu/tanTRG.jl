@@ -21,15 +21,16 @@ function rhoMPO(H, beta0, s;tol=1e-6)
         Hn = apply(H, Hn)
         rho += (-beta0)^i/factorial(i) * Hn
         feold = fe
-        fe = -1 * (2*beta0)^-1 * 2*lognorm(rho)
+        lgnrm = lognorm(rho)
+        fe = -1 * (2*beta0)^-1 * 2*lgnrm
         diff = abs((fe-feold)/feold)
-        @show i
-        @show diff
+        println("H^i for i = $i")
+        println("relative Δ Fe =  $diff")
         if diff < tol
             break
         end
         i += 1
     end
 
-    return rho
+    return rho, lgnrm
 end

@@ -8,8 +8,16 @@ function tdvp(H, t::Number, psi0::MPS, sweeps::Sweeps; kwargs...)
   return tdvp(H, t, psi0; process_sweeps(sweeps)..., kwargs...)
 end
 
+function tdvp(H, t::Number, psi0::MPO, lgnrm::Number, sweeps::Sweeps; kwargs...)
+  return tdvp(H, t, psi0, lgnrm; process_sweeps(sweeps)..., kwargs...)
+end
+
 function tdvp(solver, H, t::Number, psi0::MPS, sweeps::Sweeps; kwargs...)
   return tdvp(solver, H, t, psi0; process_sweeps(sweeps)..., kwargs...)
+end
+
+function tdvp(solver, H, t::Number, psi0::MPO, lgnrm::Number, sweeps::Sweeps; kwargs...)
+  return tdvp(solver, H, t, psi0, lgnrm; process_sweeps(sweeps)..., kwargs...)
 end
 
 function dmrg(H, psi0::MPS, sweeps::Sweeps; kwargs...)

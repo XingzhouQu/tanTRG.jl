@@ -42,7 +42,7 @@ function process_sweeps(; kwargs...)
   return (; maxdim, mindim, cutoff, noise)
 end
 
-function tdvp(solver, PH, t::Number, psi0; kwargs...)
+function tdvp(solver, PH, t::Number, psi0, lgnrm; kwargs...)
   reverse_step = get(kwargs, :reverse_step, true)
 
   nsweeps = _tdvp_compute_nsweeps(t; kwargs...)
@@ -70,6 +70,12 @@ function tdvp(solver, PH, t::Number, psi0; kwargs...)
   # `solver`.
   current_time = time_start
   info = nothing
+  totalTimeUsed = 0.0
+
+  # initialize data to be saved
+  lsbeta = zeros(nsweeps)
+  lsfe = zeros(nsweeps)
+
   for sw in 1:nsweeps
     if !isnothing(write_when_maxdim_exceeds) && maxdim[sw] > write_when_maxdim_exceeds
       if outputlevel >= 2
@@ -81,12 +87,13 @@ function tdvp(solver, PH, t::Number, psi0; kwargs...)
     end
 
     sw_time = @elapsed begin
-      psi, PH, info = tdvp_step(
+      psi, PH, lgnrm, info = tdvp_step(
         tdvp_order,
         solver,
         PH,
         time_step,
-        psi;
+        psi,
+        lgnrm;
         kwargs...,
         current_time,
         reverse_step,
@@ -99,6 +106,15 @@ function tdvp(solver, PH, t::Number, psi0; kwargs...)
     end
 
     current_time += time_step
+    totalTimeUsed += sw_time
+    lsbeta[sw] = current_time*2
+    lsfe[sw] = -1 * (lsbeta[sw])^-1 * 2*lgnrm
+    h5open("test.h5","w") do fid
+      g = create_group(fid,"Rslt")
+      g["lsbeta"] = lsbeta
+      g["lsfe"] = lsfe
+    end
+
 
     update!(step_observer; psi, sweep=sw, outputlevel, current_time)
 
@@ -120,12 +136,14 @@ function tdvp(solver, PH, t::Number, psi0; kwargs...)
     end
     isdone && break
   end
-  return psi
+  # return psi
+  return totalTimeUsed
 end
 
 """
     tdvp(H::MPO,psi0::MPS,t::Number; kwargs...)
     tdvp(H::MPO,psi0::MPS,t::Number; kwargs...)
+    tdvp(H::MPO,psi0::MPO,t::Number,lgnrm::Number; kwargs...)
 
 Use the time dependent variational principle (TDVP) algorithm
 to compute `exp(t*H)*psi0` using an efficient algorithm based
@@ -140,14 +158,14 @@ Optional keyword arguments:
 * `observer` - object implementing the [Observer](@ref observer) interface which can perform measurements and stop early
 * `write_when_maxdim_exceeds::Int` - when the allowed maxdim exceeds this value, begin saving tensors to disk to free memory in large calculations
 """
-function tdvp(solver, H::MPO, t::Number, psi0; kwargs...)
+function tdvp(solver, H::MPO, t::Number, psi0, lgnrm; kwargs...)
   check_hascommoninds(siteinds, H, psi0)
   check_hascommoninds(siteinds, H, psi0')
   # Permute the indices to have a better memory layout
   # and minimize permutations
   H = ITensors.permute(H, (linkind, siteinds, linkind))
   PH = ProjMPO(H)
-  return tdvp(solver, PH, t, psi0; kwargs...)
+  return tdvp(solver, PH, t, psi0, lgnrm; kwargs...)
 end
 
 function tdvp(solver, t::Number, H, psi0::MPS; kwargs...)
