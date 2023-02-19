@@ -10,5 +10,8 @@ $ julia
 
 julia> ]
 
+# also need to install my version of ITensors
+pkg> dev "https://github.com/phymann/ITensors.jl"
+
 pkg> dev "https://github.com/phymann/tanTRG.jl"
 ```
