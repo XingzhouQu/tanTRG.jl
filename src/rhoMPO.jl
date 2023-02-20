@@ -4,7 +4,7 @@ TODO:
 implement two-site variational product
 
 """
-function rhoMPO(H, beta0, s;tol=1e-6)
+function rhoMPO(H::MPO, beta0::Number, s; tol=1e-6)
     rho = MPO(s, "Id")
     lgnrm = lognorm(rho)
     nrm0 = exp(lgnrm)

@@ -1,4 +1,4 @@
-module ITensorTDVP
+module tanTRG
 
 using ITensors
 using KrylovKit: exponentiate, eigsolve
@@ -42,4 +42,4 @@ include("rhoMPO.jl")
 
 export tdvp, dmrg_x, to_vec, TimeDependentSum, linsolve, rhoMPO
 
-end
+end # module tanTRG
