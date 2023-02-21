@@ -9,7 +9,7 @@ function getFe(trRho, beta, lgtr0)
 end
 
 function rhoMPO(H::MPO, beta::Number, s; tol=1e-12)
-    nmaxHn = 8
+    nmaxHn = 12
     lstrHn = Vector{Float64}(undef, nmaxHn)
 
     Hid = MPO(s, "Id")
@@ -29,22 +29,23 @@ function rhoMPO(H::MPO, beta::Number, s; tol=1e-12)
     rho = Hid
     trRho = trHid
 
-    feold = 0.0
+    feold = getFe(trRho, beta, log(tr0))
     fe = 0.0
     for i in 1:nmaxHn
         if i > 1
             Hn = apply(H, Hn)
         end
         rho += convert(Float64,(-beta)^i/factorial(big(i))) * Hn
-        feold = getFe(trRho, beta, log(tr0))
         trRho += convert(Float64, (-beta)^i/factorial(big(i))) * tr(Hn)
         fe = getFe(trRho, beta, log(tr0))
         if i < 2 # at least keep the 1st order
             continue
         end
         if abs((fe-feold)/feold) < tol
+            println("SETTN converges at i = $i")
             break
         end
+        feold = fe
     end
     return rho, log(trRho)+log(tr0)
 end
