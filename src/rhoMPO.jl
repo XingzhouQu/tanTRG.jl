@@ -8,7 +8,7 @@ function getFe(trRho, beta, lgtr0)
     return -1*(beta)^-1*(log(trRho)+lgtr0)
 end
 
-function rhoMPO(H::MPO, beta0::Number, s; tol=1e-6)
+function rhoMPO(H::MPO, beta::Number, s; tol=1e-12)
     nmaxHn = 8
     lstrHn = Vector{Float64}(undef, nmaxHn)
 
@@ -21,38 +21,30 @@ function rhoMPO(H::MPO, beta0::Number, s; tol=1e-6)
     Hn /= tr0
     lstrHn[1] = tr(Hn)
 
-    for i in 2:nmaxHn
-        Hn = apply(H, Hn)
-        lstrHn[i] = tr(Hn)
-    end
+    # for i in 2:nmaxHn
+    #     Hn = apply(H, Hn)
+    #     lstrHn[i] = tr(Hn)
+    # end
 
+    rho = Hid
+    trRho = trHid
 
-
-    lgnrm = lognorm(rho)
-    nrm0 = exp(lgnrm)
-    rho /= nrm0
-
-    Hn = copy(H)
-    Hn /= nrm0
-    rho += (-beta0) * Hn
-
-    fe = -1 * (2*beta0)^-1 * 2*lognorm(rho)
-
-    i = 2
-    while i<1000
-        Hn = apply(H, Hn)
-        rho += (-beta0)^i/factorial(i) * Hn
-        feold = fe
-        lgnrm = lognorm(rho)
-        fe = -1 * (2*beta0)^-1 * 2*lgnrm
-        diff = abs((fe-feold)/feold)
-        println("H^i for i = $i")
-        println("relative Δ Fe =  $diff")
-        if diff < tol
+    feold = 0.0
+    fe = 0.0
+    for i in 1:nmaxHn
+        if i > 1
+            Hn = apply(H, Hn)
+        end
+        rho += convert(Float64,(-beta)^i/factorial(big(i))) * Hn
+        feold = getFe(trRho, beta, log(tr0))
+        trRho += convert(Float64, (-beta)^i/factorial(big(i))) * tr(Hn)
+        fe = getFe(trRho, beta, log(tr0))
+        if i < 2 # at least keep the 1st order
+            continue
+        end
+        if abs((fe-feold)/feold) < tol
             break
         end
-        i += 1
     end
-
-    return rho, lgnrm
+    return rho, log(trRho)+log(tr0)
 end

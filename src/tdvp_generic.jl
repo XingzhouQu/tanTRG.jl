@@ -73,8 +73,8 @@ function tdvp(solver, PH, t::Number, psi0, lgnrm; kwargs...)
   totalTimeUsed = 0.0
 
   # initialize data to be saved
-  lsbeta = zeros(nsweeps)
-  lsfe = zeros(nsweeps)
+
+  rslt = Dict("lsfe" => Vector{Float64}(undef, nsweeps), "lsie" => Vector{Float64}(undef, nsweeps), "lsbeta" => Vector{Float64}(undef, nsweeps))
 
   for sw in 1:nsweeps
     if !isnothing(write_when_maxdim_exceeds) && maxdim[sw] > write_when_maxdim_exceeds
@@ -107,13 +107,14 @@ function tdvp(solver, PH, t::Number, psi0, lgnrm; kwargs...)
 
     current_time += time_step
     totalTimeUsed += sw_time
-    lsbeta[sw] = current_time*2
-    lsfe[sw] = -1 * (lsbeta[sw])^-1 * 2*lgnrm
-    h5open("test.h5","w") do fid
-      g = create_group(fid,"Rslt")
-      g["lsbeta"] = lsbeta
-      g["lsfe"] = lsfe
-    end
+    rslt["lsbeta"][sw] = -current_time*2 # bilayer, negative evolution step
+    rslt["lsfe"][sw] = -1 * (rslt["lsbeta"][sw])^-1 * 2*lgnrm # √[tr(ρ†ρ)]
+    rslt["lsie"][sw] = inner(psi, apply(PH.H,psi))/norm(psi)^2
+    # ITensors.HDF5.h5open("test.h5","w") do fid
+    #   fid["lsbeta"] = lsbeta
+    #   fid["lsfe"] = lsfe
+    #   fid["lsie"] = lsie
+    # end
 
 
     update!(step_observer; psi, sweep=sw, outputlevel, current_time)
@@ -137,7 +138,7 @@ function tdvp(solver, PH, t::Number, psi0, lgnrm; kwargs...)
     isdone && break
   end
   # return psi
-  return totalTimeUsed
+  return totalTimeUsed, rslt
 end
 
 """

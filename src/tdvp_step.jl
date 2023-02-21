@@ -1,8 +1,8 @@
 function tdvp_step(
   order::TDVPOrder, solver, PH, time_step::Number, psi::MPS; current_time=0.0, kwargs...
 )
-  orderings = ITensorTDVP.orderings(order)
-  sub_time_steps = ITensorTDVP.sub_time_steps(order)
+  orderings = tanTRG.orderings(order)
+  sub_time_steps = tanTRG.sub_time_steps(order)
   sub_time_steps *= time_step
   info = nothing
   for substep in 1:length(sub_time_steps)
@@ -17,8 +17,8 @@ end
 function tdvp_step(
   order::TDVPOrder, solver, PH, time_step::Number, psi::MPO, lgnrm::Number; current_time=0.0, kwargs...
 )
-  orderings = ITensorTDVP.orderings(order)
-  sub_time_steps = ITensorTDVP.sub_time_steps(order)
+  orderings = tanTRG.orderings(order)
+  sub_time_steps = tanTRG.sub_time_steps(order)
   sub_time_steps *= time_step
   info = nothing
   for substep in 1:length(sub_time_steps)
@@ -376,7 +376,7 @@ function tdvp_site_update!(
   phi1, info = solver(PH, time_step, phi1; current_time, outputlevel)
   current_time += time_step
   # normalize && (phi1 /= norm(phi1))
-  lgnrm1 = lognorm(phi1)
+  lgnrm1 = log(norm(phi1))
   lgnrm += lgnrm1
   phi1 /= exp(lgnrm1)
   spec = nothing
@@ -410,9 +410,9 @@ function tdvp_site_update!(
     phi0, info = solver(PH, -time_step, phi0; current_time, outputlevel)
     current_time -= time_step
     # normalize && (phi0 ./= norm(phi0))
-    lgnrm0 = lognorm(phi0)
-    lgnrm += lgnrm0
-    phi0 ./= exp(lgnrm0)
+    # lgnrm0 = log(norm(phi0))
+    # lgnrm += lgnrm0
+    # phi0 ./= exp(lgnrm0)
     psi[b1] = phi0
     set_nsite!(PH, nsite)
   end
