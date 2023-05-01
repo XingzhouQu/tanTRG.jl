@@ -47,5 +47,7 @@ function rhoMPO(H::MPO, beta::Number, s; tol=1e-12)
         end
         feold = fe
     end
+
+    swapprime!(rho, 1, 2)
     return rho, log(trRho)+log(tr0)
 end

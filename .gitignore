@@ -11,3 +11,5 @@
 Manifest.toml
 benchmark/*.json
 docs/build/
+*.jld2
+jw*

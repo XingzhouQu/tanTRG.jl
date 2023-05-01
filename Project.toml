@@ -4,8 +4,13 @@ authors = ["Junsen Wang <jsw@mail.ustc.edu.cn>"]
 version = "0.1.0"
 
 [deps]
+ITensorTDVP = "25707e16-a4db-4a07-99d9-4d67b7af0342"
 ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 KrylovKit = "0b1a1467-8014-51b9-945f-bf0ae24f4b77"
+MAT = "23992714-dd62-5051-b70f-ba57cb901cac"
+MakiePublication = "dde8697e-0d61-460d-88dd-856f66710dd1"
 Observers = "338f10d5-c7f1-4033-a7d1-f9dec39bcaa0"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
+UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"

@@ -1,6 +1,7 @@
 module tanTRG
 
 using ITensors
+# using ITensorTDVP
 using KrylovKit: exponentiate, eigsolve
 using KrylovKit: KrylovKit
 import KrylovKit: linsolve
@@ -16,7 +17,19 @@ using ITensors:
   check_hascommoninds,
   orthocenter,
   ProjMPS,
-  set_nsite!
+  set_nsite!,
+  # added by phyjswang
+  leftlim,
+  setleftlim!,
+  rightlim,
+  setrightlim!
+
+# using ITensorTDVP:
+#     _tdvp_compute_nsweeps
+#     process_sweeps
+#     TDVPOrder
+#     tdvp_step
+
 
 # Compatibility of ITensor observer and Observers
 include("update_observer.jl")
@@ -40,6 +53,9 @@ include("projmps2.jl")
 include("projmpo_mps2.jl")
 include("linsolve.jl")
 include("rhoMPO.jl")
+# added by phyjswang
+include("ITensors_additional.jl")
+# include("ITensorTDVP_additional.jl")
 
 export tdvp, dmrg_x, to_vec, TimeDependentSum, linsolve, rhoMPO
 
