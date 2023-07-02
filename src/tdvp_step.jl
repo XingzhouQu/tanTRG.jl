@@ -15,7 +15,14 @@ function tdvp_step(
 end
 
 function tdvp_step(
-  order::TDVPOrder, solver, PH, time_step::Number, psi::MPO, lgnrm::Number; current_time=0.0, kwargs...
+  order::TDVPOrder,
+  solver,
+  PH,
+  time_step::Number,
+  psi::MPO,
+  lgnrm::Number;
+  current_time=0.0,
+  kwargs...,
 )
   orderings = tanTRG.orderings(order)
   sub_time_steps = tanTRG.sub_time_steps(order)
@@ -23,7 +30,14 @@ function tdvp_step(
   info = nothing
   for substep in 1:length(sub_time_steps)
     psi, PH, lgnrm, info = tdvp_sweep(
-      orderings[substep], solver, PH, sub_time_steps[substep], psi, lgnrm; current_time, kwargs...
+      orderings[substep],
+      solver,
+      PH,
+      sub_time_steps[substep],
+      psi,
+      lgnrm;
+      current_time,
+      kwargs...,
     )
     current_time += sub_time_steps[substep]
   end
@@ -52,9 +66,16 @@ function is_half_sweep_done(direction, b, n; ncenter)
 end
 
 function tdvp_sweep(
-  direction::Base.Ordering, solver, PH, time_step::Number, psi::MPO, lgnrm::Number; kwargs...
+  direction::Base.Ordering,
+  solver,
+  PH,
+  time_step::Number,
+  psi::MPO,
+  lgnrm::Number;
+  kwargs...,
 )
   PH = copy(PH)
+  prime!(PH.H, "Site")  # Add this line for tanTRG. Ensure H * v is performable during tdvp_sweep.
   psi = copy(psi)
   if length(psi) == 1
     error(
@@ -126,7 +147,7 @@ function tdvp_sweep(
       print(" mindim=", mindim)
       print(" current_time=", round(current_time; digits=3))
       println()
-      if spec != nothing
+      if spec !== nothing
         @printf(
           "  Trunc. err=%.2E, bond dimension %d\n", spec.truncerr, dim(linkind(psi, b))
         )
@@ -148,6 +169,8 @@ function tdvp_sweep(
   end
   # Just to be sure:
   # normalize && normalize!(psi)
+  PH.H = replaceprime(PH.H, 1, 0, "Site")  # add this two lines for tanTRG. Edited by XZ.Q
+  PH.H = replaceprime(PH.H, 2, 1, "Site")  # Recover the prime level of H after tdvp_sweep.
   return psi, PH, lgnrm, TDVPInfo(maxtruncerr)
 end
 
@@ -399,7 +422,7 @@ function tdvp_site_update!(
     svd_alg,
   )
   maxtruncerr = max(maxtruncerr, spec.truncerr)
-  
+
   if !is_half_sweep_done(direction, b, N; ncenter=nsite)
     # Do backwards evolution step
     b1 = (isforward(direction) ? b + 1 : b)

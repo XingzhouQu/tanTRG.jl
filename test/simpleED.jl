@@ -1,7 +1,7 @@
+using MKL
 using ITensors
 using KrylovKit
 using LinearAlgebra
-using MKL
 
 include("fuse_inds.jl")
 
@@ -34,14 +34,14 @@ function mainED(H, s, tls; blas_num_threads=Sys.CPU_THREADS, fuse=true, binary=t
   end
 
   vals = eigvals(array(H_full))
-  
-  betals = tls.^-1
+
+  betals = tls .^ -1
   fels = Vector{Float64}(undef, length(betals))
   iels = Vector{Float64}(undef, length(betals))
   for (cnt, β) in enumerate(betals)
-    bigz = sum(exp.(-β*vals))
+    bigz = sum(exp.(-β * vals))
     fels[cnt] = -tls[cnt] * log(bigz)
-    iels[cnt] = sum(vals .* exp.(-β*vals))/bigz
+    iels[cnt] = sum(vals .* exp.(-β * vals)) / bigz
   end
   return fels, iels
 end

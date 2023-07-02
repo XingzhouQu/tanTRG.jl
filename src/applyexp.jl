@@ -46,8 +46,9 @@ function applyexp(H, tau::Number, x0; kwargs...)
 
     # Matrix-vector multiplication
     w = H(v1)
-    nmatvec += 1
+    noprime!(w, "Link")  # add this line for tanTRG. Make sure w and v1 have the same prime level.
 
+    nmatvec += 1
     avnorm = norm(w)
     alpha = dot(w, v1)
 

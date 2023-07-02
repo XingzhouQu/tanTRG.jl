@@ -1,5 +1,5 @@
 using ITensors
-using tanTRG
+using .tanTRG
 using JLD2
 using UnPack
 

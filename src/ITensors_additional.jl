@@ -5,7 +5,9 @@
 
 function ITensors.prime(::ITensors.OneITensor, ::String) end
 
-function ITensors.:*(it::ITensor, ::Nothing) return it end
+function ITensors.:*(it::ITensor, ::Nothing)
+  return it
+end
 
 """
     product(P::ProjMPO,v::ITensor)::ITensor
@@ -41,65 +43,67 @@ function ITensors.product(P::AbstractProjMPO, v::ITensor)::ITensor
     )
   end
   # return noprime(Pv)
-  return replaceprime(Pv,1,0)
+  return replaceprime(Pv, 2, 1, "Site")
 end
 
 function ITensors._makeL!(P::AbstractProjMPO, psi::MPO, k::Int)::Union{ITensor,Nothing}
-    # Save the last `L` that is made to help with caching
-    # for DiskProjMPO
-    ll = P.lpos
-    if ll ≥ k
-      # Special case when nothing has to be done.
-      # Still need to change the position if lproj is
-      # being moved backward.
-      P.lpos = k
-      return nothing
-    end
-    # Make sure ll is at least 0 for the generic logic below
-    ll = max(ll, 0)
-    L = lproj(P)
-    while ll < k
-        L = L * psi[ll + 1] * P.H[ll + 1] * swapprime(dag(prime(psi[ll + 1])), 3, 2)
-        P.LR[ll + 1] = L
-        ll += 1
-    end
-    # Needed when moving lproj backward.
+  # Save the last `L` that is made to help with caching
+  # for DiskProjMPO
+  ll = P.lpos
+  if ll ≥ k
+    # Special case when nothing has to be done.
+    # Still need to change the position if lproj is
+    # being moved backward.
     P.lpos = k
-    return L
+    return nothing
+  end
+  # Make sure ll is at least 0 for the generic logic below
+  ll = max(ll, 0)
+  L = lproj(P)
+  while ll < k
+    # Prime level of P.H is already handled. See Func tdvp_sweep in file tdvp_setp.jl. Edited by XZ.Q
+    L = L * psi[ll + 1] * P.H[ll + 1] * dag(replaceprime(prime(psi[ll + 1]), 1, 0, "Site"))
+    P.LR[ll + 1] = L
+    ll += 1
+  end
+  # Needed when moving lproj backward.
+  P.lpos = k
+  return L
 end
 
 function ITensors.makeL!(P::AbstractProjMPO, psi::MPO, k::Int)
-    ITensors._makeL!(P, psi, k)
-    return P
+  ITensors._makeL!(P, psi, k)
+  return P
 end
 
 function ITensors._makeR!(P::AbstractProjMPO, psi::MPO, k::Int)::Union{ITensor,Nothing}
-    # Save the last `R` that is made to help with caching
-    # for DiskProjMPO
-    rl = P.rpos
-    if rl ≤ k
-        # Special case when nothing has to be done.
-        # Still need to change the position if rproj is
-        # being moved backward.
-        P.rpos = k
-        return nothing
-    end
-    N = length(P.H)
-    # Make sure rl is no bigger than `N + 1` for the generic logic below
-    rl = min(rl, N + 1)
-    R = rproj(P)
-    while rl > k
-        R = R * psi[rl - 1] * P.H[rl - 1] * swapprime(dag(prime(psi[rl - 1])), 3, 2)
-        P.LR[rl - 1] = R
-        rl -= 1
-    end
+  # Save the last `R` that is made to help with caching
+  # for DiskProjMPO
+  rl = P.rpos
+  if rl ≤ k
+    # Special case when nothing has to be done.
+    # Still need to change the position if rproj is
+    # being moved backward.
     P.rpos = k
-    return R
+    return nothing
+  end
+  N = length(P.H)
+  # Make sure rl is no bigger than `N + 1` for the generic logic below
+  rl = min(rl, N + 1)
+  R = rproj(P)
+  while rl > k
+    # Prime level of P.H is already handled. See Func tdvp_sweep in file tdvp_setp.jl. Edited by XZ.Q
+    R = R * psi[rl - 1] * P.H[rl - 1] * dag(replaceprime(prime(psi[rl - 1]), 1, 0, "Site"))
+    P.LR[rl - 1] = R
+    rl -= 1
+  end
+  P.rpos = k
+  return R
 end
 
 function ITensors.makeR!(P::AbstractProjMPO, psi::MPO, k::Int)
-    ITensors._makeR!(P, psi, k)
-    return P
+  ITensors._makeR!(P, psi, k)
+  return P
 end
 
 """
@@ -183,13 +187,13 @@ end
 Like `replacebond!`, but returns the new MPO.
 """
 function ITensors.replacebond(M0::MPO, b::Int, phi::ITensor; kwargs...)
-    M = copy(M0)
-    replacebond!(M, b, phi; kwargs...)
-    return M
+  M = copy(M0)
+  replacebond!(M, b, phi; kwargs...)
+  return M
 end
 
 # Allows overloading `replacebond!` based on the projected
 # MPO type. By default just calls `replacebond!` on the MPO.
 function ITensors.replacebond!(PH, M::MPO, b::Int, phi::ITensor; kwargs...)
-    return replacebond!(M, b, phi; kwargs...)
+  return replacebond!(M, b, phi; kwargs...)
 end
