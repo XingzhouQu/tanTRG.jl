@@ -2,12 +2,11 @@ using MKL
 using .tanTRG
 using JLD2
 using UnPack
+using ITensors
 
 function main()
-  include("simpleED.jl")
-
   #   lsd = [2^i for i in 4:6]
-  lsd = [400]
+  lsd = [300]
   nd = length(lsd)
 
   lx = 6
@@ -32,6 +31,7 @@ function main()
   nsweeps = 30
 
   lsfe = zeros(nd, nsweeps)
+
   lsie = zeros(nd, nsweeps)
   lsbeta = zeros(nsweeps)
   fels_ED = zeros(nsweeps)
@@ -50,6 +50,7 @@ function main()
       outputlevel=1,
       time_start=beta0,
       solver_krylovdim=20,
+      solver_backend="exponentiate",  # or "applyexp"
     )
 
     println("for D = $dbond, time used is $totalTimeUsed")
@@ -58,12 +59,6 @@ function main()
     lsfe[idx, :] = rslt["lsfe"]
     lsie[idx, :] = rslt["lsie"]
     lsbeta = rslt["lsbeta"]
-
-    if idx == 1
-      println("Now for ED calculation!")
-      flush(stdout)
-      fels_ED, iels_ED = mainED(H, sites, lsbeta .^ -1)
-    end
   end
 
   fname = "test.jld2"
@@ -227,10 +222,5 @@ main()
 #   rho, lgnrm = rhoMPO(H, beta0, sites)
 #   @show maxlinkdim(rho)
 #   @show inds(rho[2])
-#   rho[2] = replaceprime(rho[2], 1, 0)
-#   #   @show inds(rho[2])
-#   #   @show inds(H[2])
-#   #   @show inds(prime(H[2], "Site"))
-#   #   @show inds(dag(replaceprime(prime(rho[2]), 1, 0, "Site")))
-#   @show inds(rho[2])
+#   @show inds(similar(rho[2]))
 # end

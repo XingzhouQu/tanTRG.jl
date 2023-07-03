@@ -100,13 +100,13 @@ function tdvp_sweep(
   set_nsite!(PH, nsite)
   if isforward(direction)
     if !isortho(psi) || orthocenter(psi) != 1
-      orthogonalize!(psi, 1)
+      ITensors.orthogonalize!(psi, 1)
     end
     @assert isortho(psi) && orthocenter(psi) == 1
     position!(PH, psi, 1)
   elseif isreverse(direction)
     if !isortho(psi) || orthocenter(psi) != N - nsite + 1
-      orthogonalize!(psi, N - nsite + 1)
+      ITensors.orthogonalize!(psi, N - nsite + 1)
     end
     @assert(isortho(psi) && (orthocenter(psi) == N - nsite + 1))
     position!(PH, psi, N - nsite + 1)

@@ -1,10 +1,7 @@
 module tanTRG
 
+using KrylovKit
 using ITensors
-# using ITensorTDVP
-using KrylovKit: exponentiate, eigsolve
-using KrylovKit: KrylovKit
-import KrylovKit: linsolve
 using Printf
 using TimerOutputs
 using Observers
@@ -29,7 +26,6 @@ using ITensors:
 #     process_sweeps
 #     TDVPOrder
 #     tdvp_step
-
 
 # Compatibility of ITensor observer and Observers
 include("update_observer.jl")

@@ -42,7 +42,7 @@ function ITensors.product(P::AbstractProjMPO, v::ITensor)::ITensor
       ),
     )
   end
-  # return noprime(Pv)
+  noprime!(Pv, "Link")
   return replaceprime(Pv, 2, 1, "Site")
 end
 
