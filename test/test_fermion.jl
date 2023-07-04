@@ -6,7 +6,7 @@ using ITensors
 
 function main()
   #   lsd = [2^i for i in 4:6]
-  lsd = [300]
+  lsd = [400]
   nd = length(lsd)
 
   lx = 6
