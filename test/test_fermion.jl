@@ -227,11 +227,9 @@ let
   beta0 = 2^-9
 
   rho, lgnrm = rhoMPO(H, beta0, sites)
+  si = noprime.(siteinds(rho; plev=1))
   @show maxlinkdim(rho)
-  @show inds(rho[12])
-  @show inds(dag(rho[12]))
-  si = siteind(rho, 12)
-  sj = siteind(dag(rho), 12)
   @show si
-  @show sj
+  @show sites
+  @assert sites == si
 end

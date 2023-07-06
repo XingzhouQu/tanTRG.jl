@@ -1,5 +1,6 @@
 using ITensors:
   promote_itensor_eltype, _op_prod, has_fermion_string, datatype, adapt, using_auto_fermion
+import ITensors: expect
 """
     thermal_corr(psi::MPO, s,
                        Op1::AbstractString,
@@ -258,4 +259,90 @@ function thermal_corr(
   C[Nb, Nb] = val / norm2_psi
 
   return C
+end
+
+"""
+    expect(psi::MPO, op::AbstractString...; kwargs...)
+    expect(psi::MPO, op::Matrix{<:Number}...; kwargs...)
+    expect(psi::MPO, ops; kwargs...)
+
+Given an MPO `psi` and a single operator name, returns
+a vector of the expected value of the operator on
+each site of the MPS.
+
+If multiple operator names are provided, returns a tuple
+of expectation value vectors.
+
+If a container of operator names is provided, returns the
+same type of container with names replaced by vectors
+of expectation values.
+
+# Optional Keyword Arguments
+
+  - `site_range = 1:length(psi)`: compute expected values only for sites in the given range
+
+# Examples
+
+```julia
+
+Z = expect(psi, "Sz") # compute for all sites
+Z = expect(psi, "Sz"; site_range=2:4) # compute for sites 2,3,4
+Z3 = expect(psi, "Sz"; site_range=3)  # compute for site 3 only (output will be a scalar)
+XZ = expect(psi, ["Sx", "Sz"]) # compute Sx and Sz for all sites
+Z = expect(psi, [1/2 0; 0 -1/2]) # same as expect(psi,"Sz")
+
+updens, dndens = expect(psi, "Nup", "Ndn") # pass more than one operator
+```
+"""
+function expect(psi::MPO, s, ops; kwargs...)
+  psi = copy(psi)
+  N = length(psi)
+  ElT = promote_itensor_eltype(psi)
+  # s = siteinds(psi)
+
+  if haskey(kwargs, :site_range)
+    sites = kwargs[:site_range]
+  else
+    sites = 1:N
+  end
+
+  site_range = (sites isa AbstractRange) ? sites : collect(sites)
+  Ns = length(site_range)
+  start_site = first(site_range)
+
+  el_types = map(o -> ishermitian(op(o, s[start_site])) ? real(ElT) : ElT, ops)
+
+  orthogonalize!(psi, start_site)
+  norm2_psi = norm(psi)^2
+
+  ex = map((o, el_t) -> zeros(el_t, Ns), ops, el_types)
+  for (entry, j) in enumerate(site_range)
+    orthogonalize!(psi, j)
+    for (n, opname) in enumerate(ops)
+      oⱼ = prime(adapt(datatype(psi[j]), op(opname, s[j])))  # add this prime for MPO.
+      val = scalar(prime(dag(psi[j]); plev=1) * oⱼ * psi[j]) / norm2_psi
+      ex[n][entry] = (el_types[n] <: Real) ? real(val) : val
+    end
+  end
+
+  if sites isa Number
+    return map(arr -> arr[1], ex)
+  end
+  return ex
+end
+
+function expect(psi::MPO, s, op::AbstractString; kwargs...)
+  return first(expect(psi, s, (op,); kwargs...))
+end
+
+function expect(psi::MPO, s, op::Matrix{<:Number}; kwargs...)
+  return first(expect(psi, s, (op,); kwargs...))
+end
+
+function expect(psi::MPO, s, op1::AbstractString, ops::AbstractString...; kwargs...)
+  return expect(psi, s, (op1, ops...); kwargs...)
+end
+
+function expect(psi::MPO, s, op1::Matrix{<:Number}, ops::Matrix{<:Number}...; kwargs...)
+  return expect(psi, s, (op1, ops...); kwargs...)
 end
