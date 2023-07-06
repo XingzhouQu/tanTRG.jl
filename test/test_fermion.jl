@@ -3,10 +3,15 @@ using .tanTRG
 using JLD2
 using UnPack
 using ITensors
+using LinearAlgebra
 
 function main()
-  #   lsd = [2^i for i in 4:6]
-  lsd = [400]
+  ncpu = 10
+  ITensors.Strided.disable_threads()
+  BLAS.set_num_threads(ncpu)
+  ITensors.enable_threaded_blocksparse(false)
+
+  lsd = [500]
   nd = length(lsd)
 
   lx = 6
@@ -28,14 +33,16 @@ function main()
   @show maxlinkdim(rho)
   flush(stdout)
 
-  nsweeps = 30
+  nsweeps = 10
 
   lsfe = zeros(nd, nsweeps)
 
   lsie = zeros(nd, nsweeps)
   lsbeta = zeros(nsweeps)
-  fels_ED = zeros(nsweeps)
-  iels_ED = zeros(nsweeps)
+
+  solver = "exponentiate"
+  @show solver
+
   for (idx, dbond) in enumerate(lsd)
     totalTimeUsed, rslt = tdvp(
       H,
@@ -50,7 +57,7 @@ function main()
       outputlevel=1,
       time_start=beta0,
       solver_krylovdim=20,
-      solver_backend="exponentiate",  # or "applyexp"
+      solver_backend=solver,  # or "applyexp"
     )
 
     println("for D = $dbond, time used is $totalTimeUsed")
@@ -63,7 +70,7 @@ function main()
 
   fname = "test.jld2"
   file = jldopen(fname, "w")
-  @pack! file = lsfe, lsie, lsbeta, fels_ED, iels_ED, lsd
+  @pack! file = lsfe, lsie, lsbeta, lsd
 end
 
 function ttpJJpMPO(
@@ -212,15 +219,19 @@ end
 #     return os
 # end
 
-main()
-# let
-#   sites = siteinds("tJ", 12; conserve_qns=true)
-#   H = MPO(tJchain(12), sites)
-#   #   H = MPO(Heisenberg(lx * ly), sites)
-#   beta0 = 2^-9
+# main()
+let
+  sites = siteinds("tJ", 12; conserve_qns=true)
+  H = MPO(tJchain(12), sites)
+  #   H = MPO(Heisenberg(lx * ly), sites)
+  beta0 = 2^-9
 
-#   rho, lgnrm = rhoMPO(H, beta0, sites)
-#   @show maxlinkdim(rho)
-#   @show inds(rho[2])
-#   @show inds(similar(rho[2]))
-# end
+  rho, lgnrm = rhoMPO(H, beta0, sites)
+  @show maxlinkdim(rho)
+  @show inds(rho[12])
+  @show inds(dag(rho[12]))
+  si = siteind(rho, 12)
+  sj = siteind(dag(rho), 12)
+  @show si
+  @show sj
+end
