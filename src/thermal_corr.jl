@@ -15,7 +15,7 @@ import ITensors: expect
 Given an MPO, the site s, and two strings denoting
 operators (as recognized by the `op` function),
 computes the two-point correlation function matrix
-C[i,j] = Tr( Op1i Op2j ρ) / Tr(ρ)
+C[i,j] = Tr(ρ(β/2) Op1i Op2j ρ(β/2)) / Tr(ρ(β/2)ρ(β/2))
 using efficient MPO techniques. Returns the matrix C.
 
 # Optional Keyword Arguments
@@ -39,7 +39,7 @@ Follow this convention during contraction:
   -<'--  -<'--|--<-   |         ρ^† 
   |           ↓       ↑''
   |                   |         o
-  |           ↑'  ——  ↑'    
+  |           ↑'——————↑'    
   ->---  ->---|-->-             ρ
               ↑
               |
@@ -107,7 +107,7 @@ function thermal_corr(
   end
 
   psi = copy(psi)
-  orthogonalize!(psi, start_site)
+  ITensors.orthogonalize!(psi, start_site)
   norm2_psi = norm(psi[start_site])^2
 
   # Nb = size of block of correlation matrix
@@ -162,8 +162,7 @@ function thermal_corr(
           oᵢ = prime(adapt(datatype(psi[pL12]), op("F", s[pL12])))  # add this prime for thermal_corr. Out'' 和 In'.
           Li12 *= (oᵢ * replaceprime(dag(psi[pL12])', 1, 0, "Site"))
         else
-          sᵢ = siteind(psi, pL12)
-          Li12 *= prime(dag(psi[pL12]), !sᵢ)
+          Li12 *= prime(dag(psi[pL12]), "Link")
         end
         Li12 *= psi[pL12]
       end
@@ -186,8 +185,7 @@ function thermal_corr(
         oᵢ = prime(adapt(datatype(psi[pL12]), op("F", s[pL12])))  # add this prime for thermal_corr. Out'' 和 In'.
         Li12 *= (oᵢ * replaceprime(dag(psi[pL12])', 1, 0, "Site"))
       else
-        sᵢ = siteind(psi, pL12)
-        Li12 *= prime(dag(psi[pL12]), !sᵢ)
+        Li12 *= prime(dag(psi[pL12]), "Link")
       end
       @assert pL12 == j
     end #for j
@@ -215,8 +213,7 @@ function thermal_corr(
             oᵢ = prime(adapt(datatype(psi[pL21]), op("F", s[pL21]))) # add this prime for thermal_corr. Out'' 和 In'.
             Li21 *= oᵢ * replaceprime(dag(psi[pL21])', 1, 0, "Site")
           else
-            sᵢ = siteind(psi, pL21)
-            Li21 *= prime(dag(si[pL21]), !sᵢ)
+            Li21 *= prime(dag(si[pL21]), "Link")
           end
           Li21 *= prime(psi[pL21], "Site")
         end
@@ -233,8 +230,7 @@ function thermal_corr(
           oᵢ = prime(adapt(datatype(psi[pL21]), op("F", s[pL21])))  # add this prime for thermal_corr. Out'' 和 In'.
           Li21 *= (oᵢ * replaceprime(dag(psi[pL21])', 1, 0, "Site"))
         else
-          sᵢ = siteind(psi, pL21)
-          Li21 *= prime(dag(psi[pL21]), !sᵢ)
+          Li21 *= prime(dag(psi[pL21]), "Link")
         end
         @assert pL21 == j
       end #for j
@@ -242,7 +238,6 @@ function thermal_corr(
     end #if is_cm_hermitian
 
     pL += 1
-    sᵢ = siteind(psi, i)
     L = Li * prime(dag(psi[i]), "Link")
   end #for i
 
@@ -250,8 +245,7 @@ function thermal_corr(
   i = end_site
   while pL < i - 1
     pL += 1
-    sᵢ = siteind(psi, pL)
-    L = L * psi[pL] * prime(dag(psi[pL]), !sᵢ)
+    L = L * psi[pL] * prime(dag(psi[pL]), "Link")
   end
   lind = commonind(psi[i], psi[i - 1])
   oᵢ = prime(adapt(datatype(psi[i]), op(onsiteOp, s, i)))  # add this prime for thermal_corr. Out'' 和 In'.
@@ -262,13 +256,15 @@ function thermal_corr(
 end
 
 """
-    expect(psi::MPO, op::AbstractString...; kwargs...)
-    expect(psi::MPO, op::Matrix{<:Number}...; kwargs...)
-    expect(psi::MPO, ops; kwargs...)
+    expect(psi::MPO, sites, op::AbstractString...; kwargs...)
+    expect(psi::MPO, sites, op::Matrix{<:Number}...; kwargs...)
+    expect(psi::MPO, sites, ops; kwargs...)
 
-Given an MPO `psi` and a single operator name, returns
+Given an MPO `psi = ρ(β/2)` and a single operator name, returns
 a vector of the expected value of the operator on
-each site of the MPS.
+each site of the MPO.
+
+Tr(ρ(β/2) o ρ(β/2)) / Tr(ρ(β/2) ρ(β/2))
 
 If multiple operator names are provided, returns a tuple
 of expectation value vectors.
@@ -285,13 +281,13 @@ of expectation values.
 
 ```julia
 
-Z = expect(psi, "Sz") # compute for all sites
-Z = expect(psi, "Sz"; site_range=2:4) # compute for sites 2,3,4
-Z3 = expect(psi, "Sz"; site_range=3)  # compute for site 3 only (output will be a scalar)
-XZ = expect(psi, ["Sx", "Sz"]) # compute Sx and Sz for all sites
-Z = expect(psi, [1/2 0; 0 -1/2]) # same as expect(psi,"Sz")
+Z = expect(psi, sites, "Sz") # compute for all sites
+Z = expect(psi, sites, "Sz"; site_range=2:4) # compute for sites 2,3,4
+Z3 = expect(psi, sites, "Sz"; site_range=3)  # compute for site 3 only (output will be a scalar)
+XZ = expect(psi, sites, ["Sx", "Sz"]) # compute Sx and Sz for all sites
+Z = expect(psi, sites, [1/2 0; 0 -1/2]) # same as expect(psi,"Sz")
 
-updens, dndens = expect(psi, "Nup", "Ndn") # pass more than one operator
+updens, dndens = expect(psi, sites, "Nup", "Ndn") # pass more than one operator
 ```
 """
 function expect(psi::MPO, s, ops; kwargs...)
@@ -312,12 +308,12 @@ function expect(psi::MPO, s, ops; kwargs...)
 
   el_types = map(o -> ishermitian(op(o, s[start_site])) ? real(ElT) : ElT, ops)
 
-  orthogonalize!(psi, start_site)
+  ITensors.orthogonalize!(psi, start_site)
   norm2_psi = norm(psi)^2
 
   ex = map((o, el_t) -> zeros(el_t, Ns), ops, el_types)
   for (entry, j) in enumerate(site_range)
-    orthogonalize!(psi, j)
+    ITensors.orthogonalize!(psi, j)
     for (n, opname) in enumerate(ops)
       oⱼ = prime(adapt(datatype(psi[j]), op(opname, s[j])))  # add this prime for MPO.
       val = scalar(prime(dag(psi[j]); plev=1) * oⱼ * psi[j]) / norm2_psi
@@ -345,4 +341,15 @@ end
 
 function expect(psi::MPO, s, op1::Matrix{<:Number}, ops::Matrix{<:Number}...; kwargs...)
   return expect(psi, s, (op1, ops...); kwargs...)
+end
+
+function getHN(psi::MPO, H::MPO, sites)
+  # calculate ⟨HN⟩ for thermal density matrix psi.
+  os = OpSum()
+  for ii in 1:length(psi)
+    os += 1, "Ntot", ii
+  end
+  Nmpo = MPO(os, sites)
+  HN = inner(psi, apply(apply(H, Nmpo), psi)) / norm(psi)^2
+  return HN
 end

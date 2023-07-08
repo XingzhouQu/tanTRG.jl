@@ -53,6 +53,10 @@ include("rhoMPO.jl")
 include("ITensors_additional.jl")
 # include("ITensorTDVP_additional.jl")
 
-export tdvp, dmrg_x, to_vec, TimeDependentSum, linsolve, rhoMPO
+#added by XZ.Q
+include("thermal_corr.jl")
+
+export tdvp,
+  dmrg_x, to_vec, TimeDependentSum, linsolve, rhoMPO, getsitesMPO, thermal_corr, expect
 
 end # module tanTRG

@@ -123,14 +123,15 @@ function tdvp(solver, PH, t::Number, psi0::MPS; kwargs...)
   return psi
 end
 
-function tdvp(solver, PH, t::Number, psi0::MPO, lgnrm; kwargs...)
+function tdvp(
+  solver, H::MPO, lstime::Vector{<:Number}, psi0::MPO, lgnrm, para::Dict, getH; kwargs...
+)
   reverse_step = get(kwargs, :reverse_step, true)
 
-  nsweeps = _tdvp_compute_nsweeps(t; kwargs...)
+  # nsweeps = _tdvp_compute_nsweeps(t; kwargs...)
+  nsweeps = length(lstime) - 1
   maxdim, mindim, cutoff, noise = process_sweeps(; nsweeps, kwargs...)
 
-  time_start::Number = get(kwargs, :time_start, 0.0)
-  time_step::Number = get(kwargs, :time_step, t)
   order = get(kwargs, :order, 2)
   tdvp_order = TDVPOrder(order, Base.Forward)
 
@@ -142,24 +143,32 @@ function tdvp(solver, PH, t::Number, psi0::MPO, lgnrm; kwargs...)
   step_observer = get(kwargs, :step_observer!, NoObserver())
   outputlevel::Int = get(kwargs, :outputlevel, 0)
 
+  # 0 for fix μ (traditional grand canonical ensemble). Otherwise adjust μ in each step to fix Nf.
+  fix_Nf::Int = get(kwargs, :fix_Nf, 0)
   psi = copy(psi0)
+  sites = getsitesMPO(psi0)  # 从MPO获得构造它的sites并不是很trivial..用这个函数
 
   # Keep track of the start of the current time step.
   # Helpful for tracking the total time, for example
   # when using time-dependent solvers.
   # This will be passed as a keyword argument to the
   # `solver`.
-  current_time = time_start
   info = nothing
-  totalTimeUsed = 0.0
 
   # initialize data to be saved
-
   rslt = Dict(
     "lsfe" => Vector{Float64}(undef, nsweeps),
     "lsie" => Vector{Float64}(undef, nsweeps),
     "lsbeta" => Vector{Float64}(undef, nsweeps),
   )
+
+  # Initialize the environment
+  check_hascommoninds(siteinds, H, psi0)
+  check_hascommoninds(siteinds, H, psi0')
+  # Permute the indices to have a better memory layout
+  # and minimize permutations
+  H = ITensors.permute(H, (linkind, siteinds, linkind))
+  PH = ProjMPO(H)
 
   for sw in 1:nsweeps
     if !isnothing(write_when_maxdim_exceeds) && maxdim[sw] > write_when_maxdim_exceeds
@@ -170,6 +179,9 @@ function tdvp(solver, PH, t::Number, psi0::MPO, lgnrm; kwargs...)
       end
       PH = disk(PH)
     end
+
+    current_time = lstime[sw]
+    time_step = lstime[sw + 1] - lstime[sw]
 
     sw_time = @elapsed begin
       psi, PH, lgnrm, info = tdvp_step(
@@ -190,17 +202,11 @@ function tdvp(solver, PH, t::Number, psi0::MPO, lgnrm; kwargs...)
       )
     end
 
-    current_time += time_step
-    totalTimeUsed += sw_time
-    rslt["lsbeta"][sw] = -current_time * 2 # bilayer, negative evolution step
+    rslt["lsbeta"][sw] = -(current_time + time_step) * 2 # bilayer, negative evolution step
     rslt["lsfe"][sw] = -1 * (rslt["lsbeta"][sw])^-1 * 2 * lgnrm # √[tr(ρ†ρ)]
     # Modify the calculation of internal energy. Edited by XZ.Q
-    rslt["lsie"][sw] = inner(psi, apply(PH.H, psi)) / norm(psi)^2
-    # ITensors.HDF5.h5open("test.h5","w") do fid
-    #   fid["lsbeta"] = lsbeta
-    #   fid["lsfe"] = lsfe
-    #   fid["lsie"] = lsie
-    # end
+    ie = inner(psi, apply(PH.H, psi)) / norm(psi)^2
+    rslt["lsie"][sw] = ie
 
     update!(step_observer; psi, sweep=sw, outputlevel, current_time)
 
@@ -221,15 +227,38 @@ function tdvp(solver, PH, t::Number, psi0::MPO, lgnrm; kwargs...)
       isdone = checkdone!(observer; psi, sweep=sw, outputlevel)
     end
     isdone && break
+
+    if fix_Nf > 0  # Number fermion is acquired to be fixed.
+      ntot = expect(psi, sites, "Ntot")
+      nnCorr = thermal_corr(psi, sites, "Ntot", "Ntot"; ishermitian=true)
+      N² = sum(nnCorr)
+      Ntot = sum(ntot)
+      HN = getHN(psi::MPO, H::MPO, sites)
+      μ =
+        (10 * (fix_Nf - Ntot) / (lstime[sw + 1] - lstime[sw]) + HN - Ntot * ie) /
+        (N² - Ntot)
+      println("Fixing Nf. Target Nf $fix_Nf, Nnow $Ntot. Modify μ to $μ.")
+      H = MPO(
+        getH(
+          para[:pbcy], para[:lx], para[:ly], para[:t], para[:tp], para[:J], para[:Jp], μ
+        ),
+        sites,
+      )
+      check_hascommoninds(siteinds, H, psi)
+      check_hascommoninds(siteinds, H, psi')
+      H = ITensors.permute(H, (linkind, siteinds, linkind))
+      PH = ProjMPO(H)
+      println()
+      flush(stdout)
+    end
   end
-  # return psi
-  return totalTimeUsed, rslt
+  return psi, rslt
 end
 
 """
     tdvp(H::MPO,psi0::MPS,t::Number; kwargs...)
     tdvp(H::MPO,psi0::MPS,t::Number; kwargs...)
-    tdvp(H::MPO,psi0::MPO,t::Number,lgnrm::Number; kwargs...)
+    tdvp(H::MPO,psi0::MPO,lstime::Vector{Number}, lgnrm::Number; kwargs...)
 
 Use the time dependent variational principle (TDVP) algorithm
 to compute `exp(t*H)*psi0` using an efficient algorithm based
@@ -244,15 +273,15 @@ Optional keyword arguments:
 * `observer` - object implementing the [Observer](@ref observer) interface which can perform measurements and stop early
 * `write_when_maxdim_exceeds::Int` - when the allowed maxdim exceeds this value, begin saving tensors to disk to free memory in large calculations
 """
-function tdvp(solver, H::MPO, t::Number, psi0::MPO, lgnrm; kwargs...)
-  check_hascommoninds(siteinds, H, psi0)
-  check_hascommoninds(siteinds, H, psi0')
-  # Permute the indices to have a better memory layout
-  # and minimize permutations
-  H = ITensors.permute(H, (linkind, siteinds, linkind))
-  PH = ProjMPO(H)
-  return tdvp(solver, PH, t, psi0, lgnrm; kwargs...)
-end
+# function tdvp(solver, H::MPO, lstime::Vector{Number}, psi0::MPO, lgnrm; kwargs...)
+#   # check_hascommoninds(siteinds, H, psi0)
+#   # check_hascommoninds(siteinds, H, psi0')
+#   # # Permute the indices to have a better memory layout
+#   # # and minimize permutations
+#   # H = ITensors.permute(H, (linkind, siteinds, linkind))
+#   # PH = ProjMPO(H)
+#   return tdvp(solver, H, lstime, psi0, lgnrm; kwargs...)
+# end
 
 function tdvp(solver, t::Number, H, psi0::MPS; kwargs...)
   return tdvp(solver, H, t, psi0; kwargs...)

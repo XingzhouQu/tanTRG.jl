@@ -61,7 +61,7 @@ function ITensors._makeL!(P::AbstractProjMPO, psi::MPO, k::Int)::Union{ITensor,N
   ll = max(ll, 0)
   L = lproj(P)
   while ll < k
-    # Prime level of P.H is already handled. See Func tdvp_sweep in file tdvp_setp.jl. Edited by XZ.Q
+    # Prime level of P.H is already handled. See Func tdvp_sweep in file tdvp_step.jl. Edited by XZ.Q
     L = L * psi[ll + 1] * P.H[ll + 1] * dag(replaceprime(prime(psi[ll + 1]), 1, 0, "Site"))
     P.LR[ll + 1] = L
     ll += 1
@@ -92,7 +92,7 @@ function ITensors._makeR!(P::AbstractProjMPO, psi::MPO, k::Int)::Union{ITensor,N
   rl = min(rl, N + 1)
   R = rproj(P)
   while rl > k
-    # Prime level of P.H is already handled. See Func tdvp_sweep in file tdvp_setp.jl. Edited by XZ.Q
+    # Prime level of P.H is already handled. See Func tdvp_sweep in file tdvp_step.jl. Edited by XZ.Q
     R = R * psi[rl - 1] * P.H[rl - 1] * dag(replaceprime(prime(psi[rl - 1]), 1, 0, "Site"))
     P.LR[rl - 1] = R
     rl -= 1
@@ -196,4 +196,17 @@ end
 # MPO type. By default just calls `replacebond!` on the MPO.
 function ITensors.replacebond!(PH, M::MPO, b::Int, phi::ITensor; kwargs...)
   return replacebond!(M, b, phi; kwargs...)
+end
+
+function getsitesMPO(rho::MPO)
+  # Given an MPO, obtain the sites object when it is constructed.
+  N = length(rho)
+  si = noprime.(siteinds(rho; plev=1))
+  str = split(string(tags(si[1][1])), ",")
+  str = chop(str[3])
+  sites = siteinds(string(str), N; conserve_qns=hasqns(rho))
+  for ii in 1:length(rho)
+    sites[ii] = si[ii][1]
+  end
+  return sites
 end

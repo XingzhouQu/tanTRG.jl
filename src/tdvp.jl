@@ -47,8 +47,10 @@ function tdvp(H, t::Number, psi0::MPS; kwargs...)
   return tdvp(tdvp_solver(; kwargs...), H, t, psi0; kwargs...)
 end
 
-function tdvp(H, t::Number, psi0::MPO, lgnrm::Number; kwargs...)
-  return tdvp(tdvp_solver(; kwargs...), H, t, psi0, lgnrm; kwargs...)
+function tdvp(
+  H::MPO, lstime::Vector{<:Number}, psi0::MPO, lgnrm::Float64, para::Dict, getH; kwargs...
+)
+  return tdvp(tdvp_solver(; kwargs...), H, lstime, psi0, lgnrm, para, getH; kwargs...)
 end
 
 function tdvp(t::Number, H, psi0::MPS; kwargs...)
