@@ -1,4 +1,4 @@
-using MKL
+# using MKL
 using .tanTRG
 using JLD2
 using UnPack
@@ -15,28 +15,34 @@ function main()
   lx = 6
   ly = 2
   N = lx * ly
+  Ntot = 10
 
-  f = h5open("psi0.h5", "r")
-  rho = read(f, "rho", MPO)
-  lgnrm = read(f, "lgnrm")
-  close(f)
-  sites = getsitesMPO(rho)
+  #   f = h5open("psi0.h5", "r")
+  #   rho = read(f, "rho", MPO)
+  #   lgnrm = read(f, "lgnrm")
+  #   close(f)
+  #   sites = getsitesMPO(rho)
+  sites = siteinds("tJ", N; conserve_qns=true)
+  beta0 = 2^-18
+  mu0 = FixtJNf_Inimu0(N::Int, Ntot::Int, beta0)
+  @show mu0
 
   para = Dict{Symbol,Any}()
   para[:lx] = lx
   para[:ly] = ly
-  para[:Ntot] = 10
-  para[:fix_Nf] = 10
-  para[:lstime] = -[0.0, 0.5, 1.0, 1.5, 1.9, 2.3, 2.6, 2.9, 3.1, 3.3, 3.4]
-  para[:nsweeps] = 10
-  para[:maxdim] = [100, 100, 100, 200, 300, 500, 500, 500, 500, 500]
+  para[:Ntot] = Ntot
+  para[:fix_Nf] = Ntot
+  para[:lstime] = vcat(-[beta0 * 2.0^ii for ii in 0:16] / 2, -[0.5, 0.75, 1, 1.5, 2] / 2)
+  para[:nsweeps] = 21
+  para[:maxdim] = vcat(fill(100, 4), fill(200, 4), fill(200, 4), fill(200, 4), fill(200, 5))
+  para[:FixNf_begin_sw] = 15
   para[:t] = 3.0
   para[:tp] = 0.51
   para[:J] = 1.0
   para[:Jp] = 0.0289
-  para[:mu0] = 5.0
+  para[:mu0] = mu0
   para[:pbcy] = false
-  para[:beta0] = 2^-9
+  para[:beta0] = beta0
 
   H = MPO(
     ttpJJpMPO(
@@ -51,11 +57,17 @@ function main()
     ),
     sites,
   )
-  #   H = MPO(tJchain(lx * ly), sites)
 
   #   rho, lgnrm = rhoMPO(H, para[:beta0], sites)
-  #   @show maxlinkdim(rho)
-  #   flush(stdout)
+  rho, lgnrm, mu_new = rhoMPO_FixNf(H, para[:beta0], sites, para)
+  @show maxlinkdim(rho)
+  flush(stdout)
+  H = MPO(
+    ttpJJpMPO(
+      para[:pbcy], para[:lx], para[:ly], para[:t], para[:tp], para[:J], para[:Jp], mu_new
+    ),
+    sites,
+  )
   #   f = h5open("psi0.h5", "w")
   #   write(f, "rho", rho)
   #   write(f, "sites", sites)
@@ -68,6 +80,7 @@ function main()
 
   solver = "exponentiate"
   @show solver
+  @show para[:lstime]
 
   psi, rslt = tdvp(
     H,
@@ -80,7 +93,7 @@ function main()
     reverse_step=true,
     normalize=false,
     maxdim=para[:maxdim],
-    cutoff=1e-12,
+    cutoff=1e-20,
     outputlevel=1,
     fix_Nf=para[:fix_Nf],
     solver_krylovdim=15,
@@ -88,7 +101,6 @@ function main()
   )
 
   @show flux(psi)
-  return flush(stdout)
 
   #   lsfe[idx, :] = rslt["lsfe"]
   #   lsie[idx, :] = rslt["lsie"]
@@ -237,13 +249,12 @@ function tJchain(N)
   return os
 end
 
-# function HaldaneChain(N)
-#     os = OpSum()
-#     for ii in 1:(N -1)
-#         os += 1, 
-#     end
-#     return os
-# end
+function FixtJNf_Inimu0(N::Int, Ntot::Int, beta0::Float64)
+  # Site number N, Fermion number Ntot.
+  α = log(Ntot / (2 * (N - Ntot)))
+  mu0 = α / beta0
+  return mu0
+end
 
 main()
 # let

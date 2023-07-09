@@ -57,6 +57,14 @@ include("ITensors_additional.jl")
 include("thermal_corr.jl")
 
 export tdvp,
-  dmrg_x, to_vec, TimeDependentSum, linsolve, rhoMPO, getsitesMPO, thermal_corr, expect
+  dmrg_x,
+  to_vec,
+  TimeDependentSum,
+  linsolve,
+  rhoMPO,
+  rhoMPO_FixNf,
+  getsitesMPO,
+  thermal_corr,
+  expect
 
 end # module tanTRG

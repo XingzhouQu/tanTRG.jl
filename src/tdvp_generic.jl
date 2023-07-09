@@ -228,27 +228,31 @@ function tdvp(
     end
     isdone && break
 
-    if fix_Nf > 0  # Number fermion is acquired to be fixed.
-      ntot = expect(psi, sites, "Ntot")
-      nnCorr = thermal_corr(psi, sites, "Ntot", "Ntot"; ishermitian=true)
-      N² = sum(nnCorr)
-      Ntot = sum(ntot)
-      HN = getHN(psi::MPO, H::MPO, sites)
-      μ =
-        (10 * (fix_Nf - Ntot) / (lstime[sw + 1] - lstime[sw]) + HN - Ntot * ie) /
-        (N² - Ntot)
-      println("Fixing Nf. Target Nf $fix_Nf, Nnow $Ntot. Modify μ to $μ.")
-      H = MPO(
-        getH(
-          para[:pbcy], para[:lx], para[:ly], para[:t], para[:tp], para[:J], para[:Jp], μ
-        ),
-        sites,
+    if fix_Nf > 0 && sw >= para[:FixNf_begin_sw]  # Adjust μ and fix number Fermion.
+      fixtime = @elapsed begin
+        ntot = expect(psi, sites, "Ntot")
+        nnCorr = thermal_corr(psi, sites, "Ntot", "Ntot"; ishermitian=true)
+        N² = sum(nnCorr)  # ⟨N²⟩
+        Ntot = sum(ntot)
+        HN = getHN(psi::MPO, H::MPO, sites)
+        μ =  # 这里因为是 negative time step, Δβ 要注意反号
+          ((fix_Nf - Ntot) / (20 * (lstime[sw] - lstime[sw + 1])) + HN - Ntot * ie) /
+          (N² - Ntot^2)
+        H = MPO(
+          getH(
+            para[:pbcy], para[:lx], para[:ly], para[:t], para[:tp], para[:J], para[:Jp], μ
+          ),
+          sites,
+        )
+        check_hascommoninds(siteinds, H, psi)
+        check_hascommoninds(siteinds, H, psi')
+        H = ITensors.permute(H, (linkind, siteinds, linkind))
+        PH = ProjMPO(H)
+      end
+      fixtime = round(fixtime; digits=3)
+      println(
+        "Fixing t-J Nf after sweep $sw takes time $fixtime. Target Nf $fix_Nf, Nnow $Ntot. Modify μ to $μ.",
       )
-      check_hascommoninds(siteinds, H, psi)
-      check_hascommoninds(siteinds, H, psi')
-      H = ITensors.permute(H, (linkind, siteinds, linkind))
-      PH = ProjMPO(H)
-      println()
       flush(stdout)
     end
   end
