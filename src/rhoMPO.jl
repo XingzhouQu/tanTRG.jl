@@ -51,8 +51,9 @@ function rhoMPO_FixNf(H::MPO, beta::Number, s, para; tol=1e-12)
   HN = getHN(rho::MPO, H::MPO, s)
   # 这里默认SETTN之后的第一步还是走beta的步长
   μ_new =
-    (0.5 * (fix_Nf - Ntot) / (para[:lstime][1] - para[:lstime][2]) + HN - Ntot * ie) /
-    (N² - Ntot^2)
+    (
+      0.5 * (para[:fix_Nf] - Ntot) / (para[:lstime][1] - para[:lstime][2]) + HN - Ntot * ie
+    ) / (N² - Ntot^2)
   println("Adjust μ to $mu_new after SETTN. (t-J sitetype here)")
   flush(stdout)
 
