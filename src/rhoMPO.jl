@@ -49,12 +49,13 @@ function rhoMPO_FixNf(H::MPO, beta::Number, s, para; tol=1e-12)
   N² = sum(nnCorr)  # ⟨N²⟩
   Ntot = sum(ntot)
   HN = getHN(rho::MPO, H::MPO, s)
+  ie = inner(rho, apply(H, rho)) / norm(rho)^2
   # 这里默认SETTN之后的第一步还是走beta的步长
   μ_new =
     (
       0.5 * (para[:fix_Nf] - Ntot) / (para[:lstime][1] - para[:lstime][2]) + HN - Ntot * ie
     ) / (N² - Ntot^2)
-  println("Adjust μ to $mu_new after SETTN. (t-J sitetype here)")
+  println("Adjust μ to $μ_new after SETTN. (t-J sitetype here)")
   flush(stdout)
 
   return rho, log(trRho) + log(tr0), μ_new
