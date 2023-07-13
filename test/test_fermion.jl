@@ -15,7 +15,7 @@ function main()
   lx = 6
   ly = 2
   N = lx * ly
-  Ntot = 10
+  Ntot = 9
 
   #   f = h5open("psi0.h5", "r")
   #   rho = read(f, "rho", MPO)
@@ -23,19 +23,42 @@ function main()
   #   close(f)
   #   sites = getsitesMPO(rho)
   sites = siteinds("tJ", N; conserve_qns=true)
-  beta0 = 2^-18
-  mu0 = FixtJNf_Inimu0(N::Int, Ntot::Int, beta0)
-  @show mu0
+  beta0 = 2^-17
+
+  #   H = MPO(
+  #     ttpJJpMPO(
+  #       para[:pbcy],
+  #       para[:lx],
+  #       para[:ly],
+  #       para[:t],
+  #       para[:tp],
+  #       para[:J],
+  #       para[:Jp],
+  #       para[:mu0],
+  #     ),
+  #     sites,
+  #   )
+  H0 = MPO(tJchain(N, 0), sites)  # 这里先不带μ, 用H0计算μ₀
+  alpha, mu0 = FixtJNf_Inimu0(N::Int, Ntot::Int, H0, sites)
+  @show alpha, mu0
+  H = MPO(tJchain(N, alpha / beta0), sites)  # 重新构造H展开SETTN
+  rho, lgnrm = rhoMPO(H, beta0 / 2, sites)  # 注意这里计算都是bilayer, 初始温度为β₀, SETTN展到 β₀/2 
+
+  @show maxlinkdim(rho)
+  flush(stdout)
 
   para = Dict{Symbol,Any}()
   para[:lx] = lx
   para[:ly] = ly
   para[:Ntot] = Ntot
   para[:fix_Nf] = Ntot
-  para[:lstime] = vcat(-[beta0 * 2.0^ii for ii in 0:16] / 2, -[0.5, 0.75, 1, 1.5, 2] / 2)
-  para[:nsweeps] = 21
-  para[:maxdim] = vcat(fill(100, 4), fill(200, 4), fill(200, 4), fill(200, 4), fill(200, 5))
-  para[:FixNf_begin_sw] = 15
+  para[:lstime] = vcat(
+    -[beta0 * 2.0^ii for ii in 0:14] / 2,
+    -[0.07, 0.08, 0.09, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5, 2] / 2,
+  )
+  para[:nsweeps] = 25
+  para[:maxdim] = 200
+  para[:FixNf_begin_sw] = 12
   para[:t] = 3.0
   para[:tp] = 0.51
   para[:J] = 1.0
@@ -44,43 +67,9 @@ function main()
   para[:pbcy] = false
   para[:beta0] = beta0
 
-  H = MPO(
-    ttpJJpMPO(
-      para[:pbcy],
-      para[:lx],
-      para[:ly],
-      para[:t],
-      para[:tp],
-      para[:J],
-      para[:Jp],
-      para[:mu0],
-    ),
-    sites,
-  )
-
-  #   rho, lgnrm = rhoMPO(H, para[:beta0], sites)
-  rho, lgnrm, mu_new = rhoMPO_FixNf(H, para[:beta0], sites, para)
-  @show maxlinkdim(rho)
-  flush(stdout)
-  H = MPO(
-    ttpJJpMPO(
-      para[:pbcy], para[:lx], para[:ly], para[:t], para[:tp], para[:J], para[:Jp], mu_new
-    ),
-    sites,
-  )
-  #   f = h5open("psi0.h5", "w")
-  #   write(f, "rho", rho)
-  #   write(f, "sites", sites)
-  #   write(f, "lgnrm", lgnrm)
-  #   close(f)
-
-  #   lsfe = zeros(para[:nsweeps], nsweeps)
-  #   lsie = zeros(para[:nsweeps], nsweeps)
-  #   lsbeta = zeros(nsweeps)
-
   solver = "exponentiate"
   @show solver
-  @show para[:lstime]
+  H = MPO(tJchain(N, mu0), sites)
 
   psi, rslt = tdvp(
     H,
@@ -88,27 +77,23 @@ function main()
     rho,
     lgnrm,
     para,
-    ttpJJpMPO;
+    tJchain;
     nsweeps=para[:nsweeps],
     reverse_step=true,
     normalize=false,
     maxdim=para[:maxdim],
-    cutoff=1e-20,
+    cutoff=1e-15,
     outputlevel=1,
     fix_Nf=para[:fix_Nf],
     solver_krylovdim=15,
     solver_backend=solver,  # or "applyexp"
   )
 
-  @show flux(psi)
-
-  #   lsfe[idx, :] = rslt["lsfe"]
-  #   lsie[idx, :] = rslt["lsie"]
-  #   lsbeta = rslt["lsbeta"]
-
-  #   fname = "test.jld2"
-  #   file = jldopen(fname, "w")
-  #   @pack! file = lsfe, lsie, lsbeta, lsd
+  @show rslt
+  psi, μ = pull_back_Nf(
+    psi, rslt[:mu], rslt[:Nsq], rslt[:Ntot], para[:fix_Nf], para[:lstime][end], sites
+  )
+  @show sum(expect(psi, sites, "Ntot"))
 end
 
 function ttpJJpMPO(
@@ -234,51 +219,33 @@ function Heisenberg(N)
   return os
 end
 
-function tJchain(N)
+function tJchain(N, mu)
   os = OpSum()
   for ii in 1:(N - 1)
-    os += 1, "Cdagup", ii, "Cup", ii + 1
-    os += 1, "Cdagdn", ii, "Cdn", ii + 1
-    os += 1, "Cdagup", ii + 1, "Cup", ii
-    os += 1, "Cdagdn", ii + 1, "Cdn", ii
+    os += -1, "Cdagup", ii, "Cup", ii + 1
+    os += -1, "Cdagdn", ii, "Cdn", ii + 1
+    os += -1, "Cdagup", ii + 1, "Cup", ii
+    os += -1, "Cdagdn", ii + 1, "Cdn", ii
     os += 0.25, "S+", ii, "S-", ii + 1
     os += 0.25, "S-", ii, "S+", ii + 1
     os += 0.5, "Sz", ii, "Sz", ii + 1
     os += -0.5 / 4, "Ntot", ii, "Ntot", ii + 1
   end
+  for jj in 1:N
+    os += -mu, "Ntot", jj
+  end
   return os
 end
 
-function FixtJNf_Inimu0(N::Int, Ntot::Int, beta0::Float64)
+function FixtJNf_Inimu0(N::Int, Ntot::Int, H::MPO, sites)
   # Site number N, Fermion number Ntot.
   α = log(Ntot / (2 * (N - Ntot)))
-  mu0 = α / beta0
-  return mu0
+  fenzi =  # 最后一个输入决定是计算 NH(true) 还是 H(false)
+    exp_alphaN(α, H, sites, true) * (1 + 2 * exp(α)) -
+    2N * exp(α) * exp_alphaN(α, H, sites, false)
+  fenmu = (1 + 2 * exp(α))^(N - 1) * 2 * N * exp(α)
+  mu0 = fenzi / fenmu
+  return α, mu0
 end
 
 main()
-# let
-#   sites = siteinds("tJ", 12; conserve_sz=true)
-#   H = MPO(tJchain(12), sites)
-#   #   H = MPO(Heisenberg(lx * ly), sites)
-#   beta0 = 2^-9
-
-#   rho, lgnrm = rhoMPO(H, beta0, sites)
-#   si = noprime.(siteinds(rho; plev=1))
-#   @show maxlinkdim(rho)
-#   @show si[1][1]
-#   @show sites[1]
-#   @assert si[1][1] == sites[1]
-
-#   sitesnew = siteinds("tJ", 12; conserve_qns=true)
-#   for ii in 1:length(H)
-#     sitesnew[ii] = si[ii][1]
-#     @show sitesnew[ii]
-#   end
-#   @show typeof(sitesnew)
-#   @show typeof(sites)
-#   @assert sites == sitesnew
-#   str = split(string(tags(si[1][1])), ",")
-#   str = chop(str[3])
-#   @show str
-# end

@@ -342,14 +342,3 @@ end
 function expect(psi::MPO, s, op1::Matrix{<:Number}, ops::Matrix{<:Number}...; kwargs...)
   return expect(psi, s, (op1, ops...); kwargs...)
 end
-
-function getHN(psi::MPO, H::MPO, sites)
-  # calculate ⟨HN⟩ for thermal density matrix psi.
-  os = OpSum()
-  for ii in 1:length(psi)
-    os += 1, "Ntot", ii
-  end
-  Nmpo = MPO(os, sites)
-  HN = inner(psi, apply(apply(H, Nmpo), psi)) / norm(psi)^2
-  return HN
-end

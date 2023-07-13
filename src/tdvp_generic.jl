@@ -156,11 +156,10 @@ function tdvp(
   info = nothing
 
   # initialize data to be saved
-  rslt = Dict(
-    "lsfe" => Vector{Float64}(undef, nsweeps),
-    "lsie" => Vector{Float64}(undef, nsweeps),
-    "lsbeta" => Vector{Float64}(undef, nsweeps),
-  )
+  rslt = Dict{Symbol,Any}()
+  rslt[:lsfe] = Vector{Float64}(undef, nsweeps)
+  rslt[:lsie] = Vector{Float64}(undef, nsweeps)
+  rslt[:lsbeta] = Vector{Float64}(undef, nsweeps)
 
   # Initialize the environment
   check_hascommoninds(siteinds, H, psi0)
@@ -169,8 +168,48 @@ function tdvp(
   # and minimize permutations
   H = ITensors.permute(H, (linkind, siteinds, linkind))
   PH = ProjMPO(H)
+  # 用于计算内能的H₀, 不含化学势项
+  H0 = MPO(getH(para[:lx] * para[:ly], 0), sites)
+  μ = para[:mu0]
+  ie = 0.0
+  N² = 0.0
+  Ntot = 0.0
+  HN = 0.0
 
   for sw in 1:nsweeps
+    current_time = lstime[sw]
+    time_step = lstime[sw + 1] - lstime[sw]
+
+    if fix_Nf > 0 && sw >= para[:FixNf_begin_sw]  # Adjust μ and fix number Fermion.
+      fixtime = @elapsed begin
+        ie = inner(psi, apply(H0, psi)) / norm(psi)^2
+        ntot = expect(psi, sites, "Ntot")
+        nnCorr = thermal_corr(psi, sites, "Ntot", "Ntot"; ishermitian=true)
+        N² = sum(nnCorr)  # ⟨N²⟩
+        Ntot = sum(ntot)
+        HN = getHN(psi::MPO, H0, sites)
+        # 这里因为是 negative time step, Δβ 要注意反号
+        μ = (0.5 * (fix_Nf - Ntot) / abs(time_step) + HN - (Ntot * ie)) / (N² - Ntot^2)
+        abs(μ) > 25 ? μ = 25 * sign(μ) : nothing
+        # This line should be modified for different model.
+        H = MPO(getH(para[:lx] * para[:ly], μ), sites)
+        check_hascommoninds(siteinds, H, psi)
+        check_hascommoninds(siteinds, H, psi')
+        H = ITensors.permute(H, (linkind, siteinds, linkind))
+        PH = ProjMPO(H)
+      end
+      fixtime = round(fixtime; digits=3)
+      println(
+        "Fixing t-J Nf before sweep $sw takes time $fixtime. Target Nf $fix_Nf, Nnow $Ntot. Modify μ to $μ.",
+      )
+      flush(stdout)
+    else
+      ntot = expect(psi, sites, "Ntot")
+      Ntot = sum(ntot)
+      ie = inner(psi, apply(H0, psi)) / norm(psi)^2
+      println("Nnow = $Ntot")
+    end
+
     if !isnothing(write_when_maxdim_exceeds) && maxdim[sw] > write_when_maxdim_exceeds
       if outputlevel >= 2
         println(
@@ -179,9 +218,6 @@ function tdvp(
       end
       PH = disk(PH)
     end
-
-    current_time = lstime[sw]
-    time_step = lstime[sw + 1] - lstime[sw]
 
     sw_time = @elapsed begin
       psi, PH, lgnrm, info = tdvp_step(
@@ -202,11 +238,11 @@ function tdvp(
       )
     end
 
-    rslt["lsbeta"][sw] = -(current_time + time_step) * 2 # bilayer, negative evolution step
-    rslt["lsfe"][sw] = -1 * (rslt["lsbeta"][sw])^-1 * 2 * lgnrm # √[tr(ρ†ρ)]
-    # Modify the calculation of internal energy. Edited by XZ.Q
-    ie = inner(psi, apply(PH.H, psi)) / norm(psi)^2
-    rslt["lsie"][sw] = ie
+    rslt[:lsbeta][sw] = -(current_time + time_step) * 2 # bilayer, negative evolution step
+    rslt[:lsfe][sw] = -1 * (rslt[:lsbeta][sw])^-1 * 2 * lgnrm # √[tr(ρ†ρ)]
+    if sw > 1
+      rslt[:lsie][sw - 1] = ie
+    end
 
     update!(step_observer; psi, sweep=sw, outputlevel, current_time)
 
@@ -216,6 +252,7 @@ function tdvp(
       @printf(" maxerr=%.2E", info.maxtruncerr)
       print(" current_time=", round(current_time; digits=3))
       print(" time=", round(sw_time; digits=3))
+      println()
       println()
       flush(stdout)
     end
@@ -227,35 +264,13 @@ function tdvp(
       isdone = checkdone!(observer; psi, sweep=sw, outputlevel)
     end
     isdone && break
-
-    if fix_Nf > 0 && sw >= para[:FixNf_begin_sw]  # Adjust μ and fix number Fermion.
-      fixtime = @elapsed begin
-        ntot = expect(psi, sites, "Ntot")
-        nnCorr = thermal_corr(psi, sites, "Ntot", "Ntot"; ishermitian=true)
-        N² = sum(nnCorr)  # ⟨N²⟩
-        Ntot = sum(ntot)
-        HN = getHN(psi::MPO, H::MPO, sites)
-        μ =  # 这里因为是 negative time step, Δβ 要注意反号
-          ((fix_Nf - Ntot) / (20 * (lstime[sw] - lstime[sw + 1])) + HN - Ntot * ie) /
-          (N² - Ntot^2)
-        H = MPO(
-          getH(
-            para[:pbcy], para[:lx], para[:ly], para[:t], para[:tp], para[:J], para[:Jp], μ
-          ),
-          sites,
-        )
-        check_hascommoninds(siteinds, H, psi)
-        check_hascommoninds(siteinds, H, psi')
-        H = ITensors.permute(H, (linkind, siteinds, linkind))
-        PH = ProjMPO(H)
-      end
-      fixtime = round(fixtime; digits=3)
-      println(
-        "Fixing t-J Nf after sweep $sw takes time $fixtime. Target Nf $fix_Nf, Nnow $Ntot. Modify μ to $μ.",
-      )
-      flush(stdout)
-    end
   end
+  @show ie, μ, N², Ntot, HN
+  rslt[:lsie][end] = ie
+  rslt[:mu] = μ
+  rslt[:Nsq] = N²
+  rslt[:Ntot] = Ntot
+  rslt[:HN] = HN
   return psi, rslt
 end
 

@@ -7,7 +7,7 @@ function exponentiate_solver(; kwargs...)
       krylovdim=get(kwargs, :solver_krylovdim, 30),
       maxiter=get(kwargs, :solver_maxiter, 100),
       verbosity=get(kwargs, :solver_outputlevel, 0),
-      eager=true,
+      eager=false,
     )
     psi, info = exponentiate(H, t, psi0; solver_kwargs...)
     return psi, info

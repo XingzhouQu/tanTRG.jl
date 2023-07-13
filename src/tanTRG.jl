@@ -65,6 +65,8 @@ export tdvp,
   rhoMPO_FixNf,
   getsitesMPO,
   thermal_corr,
-  expect
+  expect,
+  exp_alphaN,
+  pull_back_Nf
 
 end # module tanTRG
