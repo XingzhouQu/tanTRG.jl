@@ -130,7 +130,7 @@ function updateOps(OpS0, μ::Float64, Nsites::Int)
   # 从给定的不含化学势的OpS0出发，
   Ops = copy(OpS0)
   for si in 1:Nsites
-    OpS += -mu, "Ntot", si
+    Ops += -mu, "Ntot", si
   end
-  return OpS
+  return Ops
 end
