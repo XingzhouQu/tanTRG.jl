@@ -124,7 +124,7 @@ function tdvp(solver, PH, t::Number, psi0::MPS; kwargs...)
 end
 
 function tdvp(
-  solver, H::MPO, lstime::Vector{<:Number}, psi0::MPO, lgnrm, para::Dict, getH; kwargs...
+  solver, H::MPO, lstime::Vector{<:Number}, psi0::MPO, lgnrm, para::Dict, OpS0; kwargs...
 )
   reverse_step = get(kwargs, :reverse_step, true)
 
@@ -169,7 +169,8 @@ function tdvp(
   H = ITensors.permute(H, (linkind, siteinds, linkind))
   PH = ProjMPO(H)
   # 用于计算内能的H₀, 不含化学势项
-  H0 = MPO(getH(para[:lx] * para[:ly], 0), sites)
+  H0 = MPO(OpS0, sites)
+  Nsites = length(H)
   μ = para[:mu0]
   ie = 0.0
   N² = 0.0
@@ -192,7 +193,7 @@ function tdvp(
         μ = (0.5 * (fix_Nf - Ntot) / abs(time_step) + HN - (Ntot * ie)) / (N² - Ntot^2)
         abs(μ) > 25 ? μ = 25 * sign(μ) : nothing
         # This line should be modified for different model.
-        H = MPO(getH(para[:lx] * para[:ly], μ), sites)
+        H = MPO(updateOps(OpS0, μ, Nsites), sites)
         check_hascommoninds(siteinds, H, psi)
         check_hascommoninds(siteinds, H, psi')
         H = ITensors.permute(H, (linkind, siteinds, linkind))
@@ -200,7 +201,7 @@ function tdvp(
       end
       fixtime = round(fixtime; digits=3)
       println(
-        "Fixing t-J Nf before sweep $sw takes time $fixtime. Target Nf $fix_Nf, Nnow $Ntot. Modify μ to $μ.",
+        "Fixing N_fermion before sweep $sw takes time $fixtime. Target Nf $fix_Nf, Nnow $Ntot. Modify μ to $μ.",
       )
       flush(stdout)
     else

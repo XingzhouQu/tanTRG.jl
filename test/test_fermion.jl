@@ -69,7 +69,8 @@ function main()
 
   solver = "exponentiate"
   @show solver
-  H = MPO(tJchain(N, mu0), sites)
+  OpS0 = tJchain(N, mu0)
+  H = MPO(OpS0, sites)
 
   psi, rslt = tdvp(
     H,
@@ -77,7 +78,7 @@ function main()
     rho,
     lgnrm,
     para,
-    tJchain;
+    OpS0;
     nsweeps=para[:nsweeps],
     reverse_step=true,
     normalize=false,
