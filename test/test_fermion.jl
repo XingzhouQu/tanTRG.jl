@@ -234,6 +234,7 @@ function tJchain(N, mu)
   end
   for jj in 1:N
     os += -mu, "Ntot", jj
+    os += -0.5, "Sz", jj
   end
   return os
 end

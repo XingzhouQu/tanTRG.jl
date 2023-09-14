@@ -54,6 +54,7 @@ function exp_alphaN(α::Float64, H::MPO, sites, cal_NH::Bool)
   # calculate Tr(exp(αN) H) -- set `cal_NH=false`
   # or Tr(exp(αN) NH)  -- set `cal_NH=true`
   if cal_NH
+    H = copy(H)
     os = OpSum()
     for ii in 1:length(H)
       os += "Ntot", ii
@@ -130,7 +131,7 @@ function updateOps(OpS0, μ::Float64, Nsites::Int)
   # 从给定的不含化学势的OpS0出发，
   Ops = copy(OpS0)
   for si in 1:Nsites
-    Ops += -mu, "Ntot", si
+    Ops += -μ, "Ntot", si
   end
   return Ops
 end
