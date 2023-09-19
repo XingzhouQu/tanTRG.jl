@@ -41,8 +41,15 @@ function main()
   H0 = MPO(tJchain(N, 0), sites)  # 这里先不带μ, 用H0计算μ₀
   alpha, mu0 = FixtJNf_Inimu0(N::Int, Ntot::Int, H0, sites)
   @show alpha, mu0
-  H = MPO(tJchain(N, alpha / beta0), sites)  # 重新构造H展开SETTN
-  rho, lgnrm = rhoMPO(H, beta0 / 2, sites)  # 注意这里计算都是bilayer, 初始温度为β₀, SETTN展到 β₀/2 
+
+  # 注意这里不能用SETTN展开 H₀-α/β₀N, 否则大体系定不准
+  # 应当先直接展开 H₀, 然后乘以 exp(αN)把粒子数拉回去
+  rho, lgnrm = rhoMPO(H0, beta0 / 2, sites)  # 注意这里计算都是bilayer, 初始温度为β₀, SETTN展到 β₀/2 
+  expαN_mpo = MPO(length(H0))  # bilayer, exp(αN) 的矩阵元也对应α/2
+  for ii in 1:length(H0)
+    expαN_mpo[ii] = op([1 0 0; 0 exp(alpha / 2) 0; 0 0 exp(alpha / 2)], sites[ii])
+  end
+  rho = apply(rho, expαN_mpo)
 
   @show maxlinkdim(rho)
   flush(stdout)
@@ -69,8 +76,9 @@ function main()
 
   solver = "exponentiate"
   @show solver
-  OpS0 = tJchain(N, mu0)
-  H = MPO(OpS0, sites)
+  #   OpS0 = tJchain(N, mu0)
+  OpS0 = tJchain(N, 0.0)
+  H = MPO(tJchain(N, mu0), sites)
 
   psi, rslt = tdvp(
     H,
