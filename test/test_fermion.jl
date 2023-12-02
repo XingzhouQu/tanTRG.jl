@@ -50,6 +50,7 @@ function main()
     expαN_mpo[ii] = op([1 0 0; 0 exp(alpha / 2) 0; 0 0 exp(alpha / 2)], sites[ii])
   end
   rho = apply(rho, expαN_mpo)
+  orthogonalize!(rho, 1)
 
   @show maxlinkdim(rho)
   flush(stdout)
@@ -66,6 +67,7 @@ function main()
   para[:nsweeps] = 25
   para[:maxdim] = 200
   para[:FixNf_begin_sw] = 12
+  para[:save_begin_sw] = 20
   para[:t] = 3.0
   para[:tp] = 0.51
   para[:J] = 1.0
@@ -76,6 +78,7 @@ function main()
 
   solver = "exponentiate"
   @show solver
+  @show pwd()
   #   OpS0 = tJchain(N, mu0)
   OpS0 = tJchain(N, 0.0)
   H = MPO(tJchain(N, mu0), sites)

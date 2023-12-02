@@ -6,6 +6,7 @@ using Printf
 using TimerOutputs
 using Observers
 using MAT
+using ITensors.HDF5
 
 using ITensors:
   AbstractMPS,

@@ -201,7 +201,7 @@ function tdvp(
       end
       fixtime = round(fixtime; digits=3)
       println(
-        "Fixing N_fermion before sweep $sw takes time $fixtime. Target Nf $fix_Nf, Nnow $Ntot. Modify μ to $μ.",
+        "Fixing N_fermion BEFORE sweep $sw takes time $fixtime. Target Nf $fix_Nf, Nnow $Ntot. Modify μ to $μ.",
       )
       flush(stdout)
     else
@@ -239,6 +239,18 @@ function tdvp(
       )
     end
 
+    # 后台存储MPS，同时继续进行下一轮扫描
+    if sw >= para[:save_begin_sw]
+      psiSave = copy(psi)
+      @sync @async begin
+        mponame = joinpath(pwd(), string("Sweep$sw-MPO.h5"))
+        f = h5open(mponame, "w")
+        write(f, "psi", psiSave)
+        close(f)
+        println("Save mps to $mponame")
+      end
+    end
+
     rslt[:lsbeta][sw] = -(current_time + time_step) * 2 # bilayer, negative evolution step
     rslt[:lsfe][sw] = -1 * (rslt[:lsbeta][sw])^-1 * 2 * lgnrm # √[tr(ρ†ρ)]
     if sw > 1
@@ -266,7 +278,6 @@ function tdvp(
     end
     isdone && break
   end
-  @show ie, μ, N², Ntot, HN
   rslt[:lsie][end] = ie
   rslt[:mu] = μ
   rslt[:Nsq] = N²
